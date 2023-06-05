@@ -1,38 +1,34 @@
-use opencv::core::{Mat, MatTrait, Size, CV_8UC3};
+use opencv::core::{Mat, MatTrait, CV_8UC3};
 
 pub struct Frame {
     pub image: Mat,
     pub data: Vec<bool>,
-    pub size: u32,
+    pub pixel_size: u32,
     pub width: u32,
     pub height: u32
 }
 
 impl Frame {
-    pub fn new(data: Vec<bool>, size: u32, width: u32, height: u32) -> Self {
-	assert!(data.len() as u32 <= (width / size) * (height / size));
+    pub fn new(data: Vec<bool>, pixel_size: u8, width: u32, height: u32) -> Self {
+	assert!(data.len() as u32 <= (width / pixel_size as u32) * (height / pixel_size as u32));
 	unsafe {
 	    Frame {
 		image: Mat::new_rows_cols(height as i32, width as i32, CV_8UC3).unwrap(),
 		data,
-		size,
+		pixel_size: pixel_size as u32,
 		width,
 		height
 	    }
 	}
     }
 
-    pub fn get_frame_size(&self) -> Size {
-	Size::new(self.width as i32, self.height as i32)
-    }
-
     pub fn compute_colors(&mut self) {
-	let max_bits = (self.width / self.size) * (self.height / self.size);
+	let max_bits = (self.width / self.pixel_size) * (self.height / self.pixel_size);
 	assert!(self.data.len() as u32 <= max_bits);
 
 	let mut coords = Vec::new();
-	for j in 0..(self.height / self.size) {
-	    for i in 0..(self.width / self.size) {
+	for j in 0..(self.height / self.pixel_size) {
+	    for i in 0..(self.width / self.pixel_size) {
 		coords.push((i, j))
 	    }
 	}
@@ -40,8 +36,8 @@ impl Frame {
 	for (i, &b) in self.data.iter().enumerate() {
 	    let (i, j) = (coords[i].0, coords[i].1);
 
-	    for y in (j * self.size)..(j * self.size + self.size) {
-		for x in (i * self.size)..(i * self.size + self.size) {
+	    for y in (j * self.pixel_size)..(j * self.pixel_size + self.pixel_size) {
+		for x in (i * self.pixel_size)..(i * self.pixel_size + self.pixel_size) {
 		    let bgr = self.image.at_2d_mut::<opencv::core::Vec3b>(y as i32, x as i32).unwrap();
 
 		    if b {

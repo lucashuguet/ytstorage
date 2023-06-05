@@ -1,8 +1,13 @@
+use crate::error;
+
+use num_traits::Num;
 use itertools::Itertools;
 use std::process;
 
-pub fn dec_to_bin(dec: u32, bits: usize) -> Vec<bool> {
-    let mut binstr = format!("{:b}", dec);
+pub fn dec_to_bin<T: Into<u32>>(dec: T, bits: usize) -> Vec<bool> {
+    let decimal: u32 = dec.into();
+    
+    let mut binstr = format!("{:b}", decimal);
     while binstr.len() < bits {
 	binstr = format!("0{}", binstr);
     }
@@ -16,7 +21,10 @@ pub fn dec_to_bin(dec: u32, bits: usize) -> Vec<bool> {
     }).collect()
 }
 
-pub fn bin_to_dec(bin: &Vec<bool>) -> Option<u32> {
+pub fn bin_to_dec<T>(bin: &[bool]) -> T
+where
+    T: Num,
+{
     let mut binstr = String::new();
     for b in bin {
 	match b {
@@ -25,9 +33,9 @@ pub fn bin_to_dec(bin: &Vec<bool>) -> Option<u32> {
 	}
     }
 
-    match u32::from_str_radix(&binstr, 2) {
-	Ok(out) => Some(out),
-	Err(_) => None
+    match T::from_str_radix(&binstr, 2) {
+	Ok(d) => d,
+	Err(_) => error("failed to convert bin to dec"),
     }
 }
 
@@ -46,7 +54,7 @@ pub fn byte_to_bits(byte: &u8) -> Vec<bool> {
     }).collect();
 }
 
-pub fn bits_to_byte(bits: &Vec<bool>) -> u8 {
+pub fn bits_to_byte(bits: &[bool]) -> u8 {
     assert!(bits.len() == 8);
     let mut tmp_str = String::new();
     for b in bits.iter() {
@@ -55,12 +63,13 @@ pub fn bits_to_byte(bits: &Vec<bool>) -> u8 {
 	    true => tmp_str = format!("{}1", tmp_str),
 	}
     }
-    return u8::from_str_radix(&tmp_str, 2).unwrap();
+
+    u8::from_str_radix(&tmp_str, 2).unwrap()
 }
 
-pub fn pages_to_bytes(bits: &Vec<bool>) -> Vec<u8> {
+pub fn pages_to_bytes(bits: &[bool]) -> Vec<u8> {
     let mut out = Vec::new();
-    for chunk in &bits.into_iter().chunks(8) {
+    for chunk in &bits.iter().chunks(8) {
 	let mut bin = String::new();
 	for b in chunk {
 	    match b {
@@ -71,5 +80,18 @@ pub fn pages_to_bytes(bits: &Vec<bool>) -> Vec<u8> {
 	out.push(u8::from_str_radix(&bin, 2).unwrap());
     }
 
-    return out
+    out
+}
+
+pub fn bin_to_str(bits: &[bool]) -> String {
+    let mut out = String::new();
+    for c in &bits.iter().chunks(8) {
+	let byte = c.copied().collect::<Vec<bool>>();
+
+	if byte != vec![false; 8] {
+	    out = format!("{}{}", out, bits_to_byte(&byte) as char);
+	}
+    }
+
+    out
 }
