@@ -1,7 +1,6 @@
-use crate::{VideoInfo, Frame, error, gen_headpage, byte_to_bits};
+use crate::{VideoInfo, VideoType, Frame, error, gen_headpage, byte_to_bits, HEAD_LENGHT};
 
-use std::io::Read;
-use std::io::BufReader;
+use std::io::{Read, BufReader};
 
 use indicatif::{ProgressIterator, ProgressBar, ProgressStyle};
 
@@ -26,14 +25,14 @@ pub fn create_video(mut info: VideoInfo, output: &str) {
     let mut bytes = buf.bytes();
 
     let fourcc = VideoWriter::fourcc('a', 'v', 'c', '1').unwrap();
-    let mut video = VideoWriter::new(output, fourcc, info.fps() as f64, Size::new(1280, 720), true).unwrap();
+    let mut video = VideoWriter::new(output, fourcc, info.fps() as f64, Size::new(info.width() as i32, info.height() as i32), true).unwrap();
 
     let head = gen_headpage(info.clone());
 
     let head_pixel = info.max_pixel();
 
-    let mut headframe = Frame::new(head, head_pixel, 1280, 720);
-    headframe.compute_colors();
+    let mut headframe = Frame::new(head, head_pixel, info.width(), info.height());
+    headframe.compute_colors(VideoType::BlackNWhite, HEAD_LENGHT);
 
     video.write(&headframe.image).unwrap();
 
@@ -47,17 +46,17 @@ pub fn create_video(mut info: VideoInfo, output: &str) {
 
     for _ in (0..total_frames).progress_with(pb) {
 	thread::scope(|s| {
-	    let mut data = Vec::new();
-	    for _ in 0..(info.bytes_per_frame()) {
-		match bytes.next() {
-		    Some(b) => data.append(&mut byte_to_bits(&b.unwrap())),
-		    _ => data.append(&mut vec![false; 8])
-		}
-	    }
-
 	    s.spawn(|_| {
+		let mut data = Vec::new();
+		for _ in 0..(info.bytes_per_frame()) {
+		    match bytes.next() {
+			Some(b) => data.append(&mut byte_to_bits(&b.unwrap())),
+			_ => data.append(&mut vec![false; 8])
+		    }
+		}
+		
 		let mut frame = Frame::new(data, info.pixel_size, info.width(), info.height());
-		frame.compute_colors();
+		frame.compute_colors(info.video_type, info.bytes_per_frame() * 8);
 		video.write(&frame.image).unwrap();
 	    });
 	}).unwrap();

@@ -18,31 +18,39 @@ use std::process;
 const HEAD_LENGHT: u32 = 844;
 
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about)]
 struct Args {
+    /// input file path
     #[arg(short, long)]
     file: String,
 
+    /// video width
     #[arg(long, default_value_t = 1280)]
     width: u32,
 
+    /// video height
     #[arg(long, default_value_t = 720)]
     height: u32,
 
+    /// bigger pixel_size means less corruption on youtube but very large files
     #[arg(long, default_value_t = 5)]
     pixel_size: u8,
 
+    /// video file fps
     #[arg(long, default_value_t = 24)]
     fps: u32,
 
-    #[arg(long, default_value_t = false)]
-    rgb: bool,
-
+    /// output path (only when compressing)
     #[arg(short, long, default_value = None)]
     output: Option<String>,
 
+    /// extract the file from the video
     #[arg(short, long, default_value_t = false)]
-    extract: bool
+    extract: bool,
+
+    /// black, gray, color8 or color16
+    #[arg(long, default_value = "black")]
+    video_type: String
 }
 
 #[derive(Debug, Clone)]
@@ -102,7 +110,12 @@ impl VideoInfo {
     }
 
     fn bytes_per_frame(&self) -> u32 {
-	(self.total_pixels() / (self.pixel_size as u32).pow(2)) / 8
+	match self.video_type {
+	    VideoType::BlackNWhite => get_bytes_per_frame(self.total_pixels(), self.pixel_size as u32, (1, 8)),
+	    VideoType::GrayScale => get_bytes_per_frame(self.total_pixels(), self.pixel_size as u32, (3, 8)),
+	    VideoType::Color8 => get_bytes_per_frame(self.total_pixels(), self.pixel_size as u32, (1, 2)),
+	    VideoType::Color16 => get_bytes_per_frame(self.total_pixels(), self.pixel_size as u32, (3, 2)),
+	}
     }
 
     fn load_file(&self) -> File {
@@ -225,7 +238,7 @@ impl VideoInfo {
 }
 
 #[derive(Debug, Copy, Clone)]
-enum VideoType {
+pub enum VideoType {
     BlackNWhite,
     GrayScale,
     Color8,
@@ -246,10 +259,33 @@ fn get_file_size(file: File) -> u64 {
     }
 }
 
+fn get_bytes_per_frame(total_pixels: u32, pixel_size: u32, byte_per_pixel: (u32, u32)) -> u32 {
+    let numerator = byte_per_pixel.0;
+    let denominator = byte_per_pixel.1;
+    
+    let pixels_per_frame = if (total_pixels * numerator) % pixel_size.pow(2) == 0 {
+	total_pixels % pixel_size.pow(2)
+    } else {
+	error("width, height, pixel_size and video_type are uncompatible");
+    };
+    if pixels_per_frame % denominator == 0 {
+	pixels_per_frame / denominator
+    } else {
+	error("width, height, pixel_size and video_type are uncompatible");
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
+    let video_type = match args.video_type.as_str() {
+	"black" => VideoType::BlackNWhite,
+	"gray" => VideoType::GrayScale,
+	"color8" => VideoType::Color8,
+	"color16" => VideoType::Color16,
+	_ => error("unreconized video type parameter"),
+    };
 
-    let info = VideoInfo::new(VideoType::BlackNWhite, &args.file, args.pixel_size, args.fps, args.width, args.height);
+    let info = VideoInfo::new(video_type, &args.file, args.pixel_size, args.fps, args.width, args.height);
     
     if !args.extract {
 	if let Some(output) = args.output {
