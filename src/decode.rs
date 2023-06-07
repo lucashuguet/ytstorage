@@ -1,7 +1,7 @@
 use std::fs::OpenOptions;
 use std::os::unix::prelude::FileExt;
 
-use crate::{HEAD_LENGHT, max_pixel_size, error, parse_headpage, pages_to_bytes};
+use crate::{HEAD_LENGHT, VideoType, max_pixel_size, error, parse_headpage, pages_to_bytes};
 
 use indicatif::{ProgressBar, ProgressStyle, ProgressIterator};
 
@@ -13,29 +13,14 @@ pub fn decode_video(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
     let mut video = VideoCapture::from_file(filename, videoio::CAP_ANY)?;
     let mut frame = Mat::default();
 
-    let width = video.get(videoio::CAP_PROP_FRAME_WIDTH)?;
-    let height = video.get(videoio::CAP_PROP_FRAME_HEIGHT)?;
+    let width = video.get(videoio::CAP_PROP_FRAME_WIDTH)? as u32;
+    let height = video.get(videoio::CAP_PROP_FRAME_HEIGHT)? as u32;
 
-    let pixel_size = max_pixel_size(HEAD_LENGHT, width as u32, height as u32) as u32;
+    let pixel_size = max_pixel_size(HEAD_LENGHT, width, height) as u32;
 
     video.read(&mut frame)?;
 
-    let mut bits = Vec::new();
-    
-    for i in 0..(height as u32 / pixel_size) {
-	for j in 0..(width as u32 / pixel_size) {
-	    let bgr = frame.at_2d::<opencv::core::Vec3b>((i * pixel_size + pixel_size /2) as i32, (j * pixel_size + pixel_size /2) as i32)?;
-
-	    let avg: u32 = bgr.iter().map(|c| *c as u32).sum::<u32>() / 3;
-
-	    if avg >= 128 {
-		bits.push(true);
-	    } else {
-		bits.push(false);
-	    }
-	}
-    }
-
+    let bits = decode_black_and_white(&frame, width, height, pixel_size)?;
     let mut info = parse_headpage(&bits);
 
     println!("extracting {}", info.filename());
@@ -46,36 +31,22 @@ pub fn decode_video(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
         .open(info.filename())?;
 
     let mut offset = 0u64;
-    let bits_per_page = (width as u32 / info.pixel_size as u32) * (height as u32 / info.pixel_size as u32);
+    let bits_per_page = (width / info.pixel_size as u32) * (height / info.pixel_size as u32);
 
     let pb = ProgressBar::new(info.total_frames() as u64);
     pb.set_style(
         ProgressStyle::with_template(
             "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] ({pos}/{len}, ETA {eta})",
-        )
-        .unwrap(),
+        )?,
     );
 
     for i in (0..info.total_frames()).progress_with(pb) {
-	let mut buffer = Vec::new();
-
 	video.read(&mut frame)?;
 
-	for i in 0..(height as u32 / info.pixel_size as u32) {
-	    for j in 0..(width as u32 / info.pixel_size as u32) {
-		let x = (i * info.pixel_size as u32 + info.pixel_size as u32 /2) as i32;
-		let y = (j * info.pixel_size as u32 + info.pixel_size as u32 /2) as i32;
-		let bgr = frame.at_2d::<opencv::core::Vec3b>(x, y)?;
-
-		let avg: u32 = bgr.iter().map(|c| *c as u32).sum::<u32>() / 3;
-
-		if avg >= 128 {
-		    buffer.push(true);
-		} else {
-		    buffer.push(false);
-	    }
-	    }
-	}
+	let mut buffer = match info.video_type {
+	    VideoType::BlackNWhite => decode_black_and_white(&frame, width, height, info.pixel_size as u32)?,
+	    _ => error("not yet implemented")
+	};
 
 	assert!(buffer.len() == bits_per_page as usize);
 
@@ -101,4 +72,25 @@ pub fn decode_video(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+fn decode_black_and_white(frame: &Mat, width: u32, height: u32, pixel_size: u32) -> Result<Vec<bool>, Box<dyn std::error::Error>> {
+    let mut bits = Vec::new();
+    for i in 0..(height / pixel_size) {
+	for j in 0..(width / pixel_size) {
+	    let x = (i * pixel_size + pixel_size /2) as i32;
+	    let y = (j * pixel_size + pixel_size /2) as i32;
+	    let bgr = frame.at_2d::<opencv::core::Vec3b>(x, y)?;
+	    
+	    let avg: u32 = bgr.iter().map(|c| *c as u32).sum::<u32>() / 3;
+	    
+	    if avg >= 128 {
+		bits.push(true);
+	    } else {
+		bits.push(false);
+	    }
+	}
+    }
+
+    Ok(bits)
 }
