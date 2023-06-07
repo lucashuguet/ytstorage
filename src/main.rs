@@ -48,7 +48,7 @@ struct Args {
     #[arg(short, long, default_value_t = false)]
     extract: bool,
 
-    /// black, gray, color8 or color16
+    /// black, grayscale, color, color8 or color16
     #[arg(long, default_value = "black")]
     video_type: String
 }
@@ -113,6 +113,7 @@ impl VideoInfo {
 	match self.video_type {
 	    VideoType::BlackNWhite => get_bytes_per_frame(self.total_pixels(), self.pixel_size as u32, (1, 8)),
 	    VideoType::GrayScale => get_bytes_per_frame(self.total_pixels(), self.pixel_size as u32, (3, 8)),
+	    VideoType::Color => get_bytes_per_frame(self.total_pixels(), self.pixel_size as u32, (3, 8)),
 	    VideoType::Color8 => get_bytes_per_frame(self.total_pixels(), self.pixel_size as u32, (1, 2)),
 	    VideoType::Color16 => get_bytes_per_frame(self.total_pixels(), self.pixel_size as u32, (3, 2)),
 	}
@@ -236,6 +237,7 @@ impl VideoInfo {
 pub enum VideoType {
     BlackNWhite,
     GrayScale,
+    Color,
     Color8,
     Color16
 }
@@ -295,7 +297,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let video_type = match args.video_type.as_str() {
 	"black" => VideoType::BlackNWhite,
-	"gray" => VideoType::GrayScale,
+	"grayscale" => VideoType::GrayScale,
+	"color" => VideoType::Color,
 	"color8" => VideoType::Color8,
 	"color16" => VideoType::Color16,
 	_ => error("unreconized video type parameter"),

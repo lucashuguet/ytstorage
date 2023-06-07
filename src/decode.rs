@@ -23,6 +23,9 @@ pub fn decode_video(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
     let bits = decode_black_and_white(&frame, width, height, pixel_size)?;
     let mut info = parse_headpage(&bits);
 
+    info.width = Some(width);
+    info.height = Some(height);
+
     println!("extracting {}", info.filename());
     
     let file = OpenOptions::new()
@@ -31,7 +34,7 @@ pub fn decode_video(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
         .open(info.filename())?;
 
     let mut offset = 0u64;
-    let bits_per_page = (width / info.pixel_size as u32) * (height / info.pixel_size as u32);
+    let bits_per_page = info.bytes_per_frame() * 8;
 
     let pb = ProgressBar::new(info.total_frames() as u64);
     pb.set_style(
@@ -45,6 +48,7 @@ pub fn decode_video(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
 
 	let mut buffer = match info.video_type {
 	    VideoType::BlackNWhite => decode_black_and_white(&frame, width, height, info.pixel_size as u32)?,
+	    VideoType::Color => decode_color(&frame, width, height, info.pixel_size as u32)?,
 	    _ => error("not yet implemented")
 	};
 
@@ -85,6 +89,37 @@ fn decode_black_and_white(frame: &Mat, width: u32, height: u32, pixel_size: u32)
 	    let avg: u32 = bgr.iter().map(|c| *c as u32).sum::<u32>() / 3;
 	    
 	    if avg >= 128 {
+		bits.push(true);
+	    } else {
+		bits.push(false);
+	    }
+	}
+    }
+
+    Ok(bits)
+}
+
+fn decode_color(frame: &Mat, width: u32, height: u32, pixel_size: u32) -> Result<Vec<bool>, Box<dyn std::error::Error>> {
+    let mut bits = Vec::new();
+    for i in 0..(height / pixel_size) {
+	for j in 0..(width / pixel_size) {
+	    let x = (i * pixel_size + pixel_size /2) as i32;
+	    let y = (j * pixel_size + pixel_size /2) as i32;
+	    let bgr = frame.at_2d::<opencv::core::Vec3b>(x, y)?;
+	    
+	    if bgr[2] >= 128 {
+		bits.push(true);
+	    } else {
+		bits.push(false);
+	    }
+
+	    if bgr[1] >= 128 {
+		bits.push(true);
+	    } else {
+		bits.push(false);
+	    }
+
+	    if bgr[0] >= 128 {
 		bits.push(true);
 	    } else {
 		bits.push(false);

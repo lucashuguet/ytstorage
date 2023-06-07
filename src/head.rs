@@ -26,8 +26,9 @@ pub fn gen_headpage(mut info: VideoInfo) -> Vec<bool>{
     let mut video_type_b = match info.video_type {
 	VideoType::BlackNWhite => dec_to_bin(0u8, 4),
 	VideoType::GrayScale => dec_to_bin(1u8, 4),
-	VideoType::Color8 => dec_to_bin(2u8, 4),
-	VideoType::Color16 => dec_to_bin(3u8, 4)
+	VideoType::Color => dec_to_bin(2u8, 4),
+	VideoType::Color8 => dec_to_bin(3u8, 4),
+	VideoType::Color16 => dec_to_bin(4u8, 4)
     };
 
     let mut checksum_b: Vec<bool> = checksum.chars().flat_map(|c| byte_to_bits(&(c as u8))).collect();
@@ -82,8 +83,9 @@ pub fn parse_headpage(head_raw: &[bool]) -> VideoInfo {
     let video_type = match video_type_d {
 	0 => VideoType::BlackNWhite,
 	1 => VideoType::GrayScale,
-	2 => VideoType::Color8,
-	3 => VideoType::Color16,
+	2 => VideoType::Color,
+	3 => VideoType::Color8,
+	4 => VideoType::Color16,
 	_ => {
 	    eprintln!("unreconized video type");
 	    process::exit(1);

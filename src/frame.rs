@@ -1,5 +1,6 @@
 use crate::{VideoType, error};
 use opencv::core::{Mat, MatTrait, CV_8UC3};
+use itertools::Itertools;
 
 #[derive(Debug)]
 struct Pixel {
@@ -20,7 +21,7 @@ pub struct Frame {
 
 impl Frame {
     pub fn new(data: Vec<bool>, pixel_size: u8, width: u32, height: u32) -> Self {
-	assert!(data.len() as u32 <= (width / pixel_size as u32) * (height / pixel_size as u32));
+	// assert!(data.len() as u32 <= (width / pixel_size as u32) * (height / pixel_size as u32));
 	unsafe {
 	    Frame {
 		image: Mat::new_rows_cols(height as i32, width as i32, CV_8UC3).unwrap(),
@@ -49,10 +50,8 @@ impl Frame {
 	}
 
 	let pixels: Vec<Pixel> = match video_type {
-	    VideoType::BlackNWhite => black_and_white(&self.data, coords, self.pixel_size),
-	    // VideoType::GrayScale => todo!(),
-	    // VideoType::Color8 => todo!(),
-	    // VideoType::Color16 => todo!()
+	    VideoType::BlackNWhite => encode_black_and_white(&self.data, coords, self.pixel_size),
+	    VideoType::Color => encode_color(&self.data, coords, self.pixel_size),
 	    _ => error("not yet implemented"),
 	};
 
@@ -65,7 +64,7 @@ impl Frame {
     }
 }
 
-fn black_and_white(data: &[bool], coords: Vec<(u32, u32)>, pixel_size: u32) -> Vec<Pixel> {
+fn encode_black_and_white(data: &[bool], coords: Vec<(u32, u32)>, pixel_size: u32) -> Vec<Pixel> {
     let mut pixels = Vec::new();
 
     for (idx, &b) in data.iter().enumerate() {
@@ -80,6 +79,27 @@ fn black_and_white(data: &[bool], coords: Vec<(u32, u32)>, pixel_size: u32) -> V
 		};
 
 		pixels.push(pixel);
+	    }
+	}
+    }
+
+    pixels
+}
+
+fn encode_color(data: &[bool], coords: Vec<(u32, u32)>, pixel_size: u32) -> Vec<Pixel> {
+    let mut pixels = Vec::new();
+
+    for (idx, chunk) in (&data.iter().chunks(3)).into_iter().enumerate() {
+	let (i, j) = (coords[idx].0, coords[idx].1);
+	let bits: Vec<bool> = chunk.copied().collect();
+	
+	for y in (j * pixel_size)..(j * pixel_size + pixel_size) {
+	    for x in (i * pixel_size)..(i * pixel_size + pixel_size) {
+		let r = if bits[0] { 255 } else { 0 };
+		let g = if bits[1] { 255 } else { 0 };
+		let b = if bits[2] { 255 } else { 0 };
+
+		pixels.push(Pixel {x, y, r, g, b});
 	    }
 	}
     }
