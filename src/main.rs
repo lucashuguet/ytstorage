@@ -33,7 +33,7 @@ struct Args {
     height: u32,
 
     /// bigger pixel_size means less corruption on youtube but very large files
-    #[arg(long, default_value_t = 5)]
+    #[arg(long, default_value_t = 10)]
     pixel_size: u8,
 
     /// video file fps
@@ -126,15 +126,10 @@ impl VideoInfo {
 
 	let path  = Path::new(&path_str);
 	if !path.exists() {
-	    eprintln!("File does not exists");
-	    process::exit(1);
+	    error("File does not exists");
 	}
 
 	File::open(path).expect("Error opening file")
-    }
-
-    fn max_pixel(&self) -> u8 {
-	f32::sqrt(self.total_pixels() as f32 / (HEAD_LENGHT +64) as f32).floor() as u8
     }
 
     fn checksum(&mut self) -> String {
@@ -264,7 +259,7 @@ fn get_bytes_per_frame(total_pixels: u32, pixel_size: u32, byte_per_pixel: (u32,
     let denominator = byte_per_pixel.1;
     
     let pixels_per_frame = if (total_pixels * numerator) % pixel_size.pow(2) == 0 {
-	total_pixels % pixel_size.pow(2)
+	(total_pixels * numerator) / pixel_size.pow(2)
     } else {
 	error("width, height, pixel_size and video_type are uncompatible");
     };
@@ -273,6 +268,27 @@ fn get_bytes_per_frame(total_pixels: u32, pixel_size: u32, byte_per_pixel: (u32,
     } else {
 	error("width, height, pixel_size and video_type are uncompatible");
     }
+}
+
+fn gcd(mut a: u32, mut b: u32) -> u32 {
+    while b != 0 {
+        let remainder = a % b;
+        a = b;
+        b = remainder;
+    }
+    a
+}
+
+fn max_pixel_size(bytes_on_frame: u32, width: u32, height: u32) -> u8 {
+    let mut pixel_size = gcd(width, height);
+    while width % pixel_size != 0
+	|| height % pixel_size != 0
+	|| (width * height) / pixel_size.pow(2) <= bytes_on_frame
+    {
+	pixel_size -= 1;
+    }
+
+    pixel_size as u8
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

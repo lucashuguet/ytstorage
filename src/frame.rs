@@ -1,7 +1,10 @@
-use crate::VideoType;
+use crate::{VideoType, error};
 use opencv::core::{Mat, MatTrait, CV_8UC3};
 
+#[derive(Debug)]
 struct Pixel {
+    x: u32,
+    y: u32,
     r: u8,
     g: u8,
     b: u8
@@ -31,6 +34,12 @@ impl Frame {
 
     pub fn compute_colors(&mut self, video_type: VideoType, bits_per_page: u32) {
 	assert!(self.data.len() as u32 <= bits_per_page);
+	assert!(self.width % self.pixel_size == 0);
+	assert!(self.height % self.pixel_size == 0);
+
+	while (self.data.len() as u32) < bits_per_page {
+	    self.data.push(false);
+	}
 
 	let mut coords = Vec::new();
 	for j in 0..(self.height / self.pixel_size) {
@@ -40,27 +49,40 @@ impl Frame {
 	}
 
 	let pixels: Vec<Pixel> = match video_type {
-	    VideoType::BlackNWhite => black_and_white(&self.data),
-	    VideoType::GrayScale => todo!(),
-	    VideoType::Color8 => todo!(),
-	    VideoType::Color16 => todo!()
+	    VideoType::BlackNWhite => black_and_white(&self.data, coords, self.pixel_size),
+	    // VideoType::GrayScale => todo!(),
+	    // VideoType::Color8 => todo!(),
+	    // VideoType::Color16 => todo!()
+	    _ => error("not yet implemented"),
 	};
 
-	for (i, pixel) in pixels.iter().enumerate() {
-	    let (i, j) = (coords[i].0, coords[i].1);
-
-	    for y in (j * self.pixel_size)..(j * self.pixel_size + self.pixel_size) {
-		for x in (i * self.pixel_size)..(i * self.pixel_size + self.pixel_size) {
-		    let bgr = self.image.at_2d_mut::<opencv::core::Vec3b>(y as i32, x as i32).unwrap();
-		    bgr[0] = pixel.b;
-		    bgr[1] = pixel.g;
-		    bgr[2] = pixel.r;
-		}
-	    }
+	for pixel in pixels.iter() {
+	    let bgr = self.image.at_2d_mut::<opencv::core::Vec3b>(pixel.y as i32, pixel.x as i32).unwrap();
+	    bgr[0] = pixel.b;
+	    bgr[1] = pixel.g;
+	    bgr[2] = pixel.r;
 	}
     }
 }
 
-fn black_and_white(data: &[bool]) -> Vec<Pixel> {
-    todo!()
+fn black_and_white(data: &[bool], coords: Vec<(u32, u32)>, pixel_size: u32) -> Vec<Pixel> {
+    let mut pixels = Vec::new();
+
+    for (idx, &b) in data.iter().enumerate() {
+	let (i, j) = (coords[idx].0, coords[idx].1);
+	
+	for y in (j * pixel_size)..(j * pixel_size + pixel_size) {
+	    for x in (i * pixel_size)..(i * pixel_size + pixel_size) {
+		let pixel = if b {
+		    Pixel {x, y, r: 255, g: 255, b: 255}
+		} else {
+		    Pixel {x, y, r: 0, g: 0, b: 0}
+		};
+
+		pixels.push(pixel);
+	    }
+	}
+    }
+
+    pixels
 }

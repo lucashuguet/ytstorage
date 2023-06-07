@@ -1,7 +1,7 @@
 use std::fs::OpenOptions;
 use std::os::unix::prelude::FileExt;
 
-use crate::{HEAD_LENGHT, error, parse_headpage, pages_to_bytes};
+use crate::{HEAD_LENGHT, max_pixel_size, error, parse_headpage, pages_to_bytes};
 
 use indicatif::{ProgressBar, ProgressStyle, ProgressIterator};
 
@@ -16,7 +16,7 @@ pub fn decode_video(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
     let width = video.get(videoio::CAP_PROP_FRAME_WIDTH)?;
     let height = video.get(videoio::CAP_PROP_FRAME_HEIGHT)?;
 
-    let pixel_size = f32::sqrt((width * height) as f32 / (HEAD_LENGHT +64) as f32).floor() as u32;
+    let pixel_size = max_pixel_size(HEAD_LENGHT, width as u32, height as u32) as u32;
 
     video.read(&mut frame)?;
 
@@ -38,6 +38,8 @@ pub fn decode_video(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     let mut info = parse_headpage(&bits);
 
+    println!("extracting {}", info.filename());
+    
     let file = OpenOptions::new()
         .create(true)
         .write(true)

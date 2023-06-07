@@ -1,4 +1,4 @@
-use crate::{VideoInfo, VideoType, Frame, error, gen_headpage, byte_to_bits, HEAD_LENGHT};
+use crate::{HEAD_LENGHT, VideoInfo, VideoType, Frame, max_pixel_size, error, gen_headpage, byte_to_bits};
 
 use std::io::{Read, BufReader};
 
@@ -29,10 +29,10 @@ pub fn create_video(mut info: VideoInfo, output: &str) {
 
     let head = gen_headpage(info.clone());
 
-    let head_pixel = info.max_pixel();
+    let head_pixel = max_pixel_size(HEAD_LENGHT, info.width(), info.height());
 
     let mut headframe = Frame::new(head, head_pixel, info.width(), info.height());
-    headframe.compute_colors(VideoType::BlackNWhite, HEAD_LENGHT);
+    headframe.compute_colors(VideoType::BlackNWhite, (info.width() * info.height()) / (head_pixel as u32).pow(2));
 
     video.write(&headframe.image).unwrap();
 
